@@ -25,31 +25,31 @@ final局部变量由程序员进行显式初始化，如果final局部变量已�
 
 通过上面的例子我们已经看出来，如果final修饰的是一个基本数据类型的数据，一旦赋值后就不能再次更改，那么，如果final是引用数据类型了？这个引用的对象能够改变吗？我们同样来看一段代码。
 ```java
-	public class FinalExample {
-	    //在声明final实例成员变量时进行赋值
-	    private final static Person person = new Person(24, 170);
-	    public static void main(String[] args) {
-	        //对final引用数据类型person进行更改
-	        person.age = 22;
-	        System.out.println(person.toString());
-	    }
-	    static class Person {
-	        private int age;
-	        private int height;
-	
-	        public Person(int age, int height) {
-	            this.age = age;
-	            this.height = height;
-	        }
-	        @Override
-	        public String toString() {
-	            return "Person{" +
-	                    "age=" + age +
-	                    ", height=" + height +
-	                    '}';
-	        }
-	    }
+public class FinalExample {
+    //在声明final实例成员变量时进行赋值
+    private final static Person person = new Person(24, 170);
+    public static void main(String[] args) {
+	//对final引用数据类型person进行更改
+	person.age = 22;
+	System.out.println(person.toString());
+    }
+    static class Person {
+	private int age;
+	private int height;
+
+	public Person(int age, int height) {
+	    this.age = age;
+	    this.height = height;
 	}
+	@Override
+	public String toString() {
+	    return "Person{" +
+		    "age=" + age +
+		    ", height=" + height +
+		    '}';
+	}
+    }
+}
 ```
 当我们对final修饰的引用数据类型变量person的属性改成22，是可以成功操作的。通过这个实验我们就可以看出来**当final修饰基本数据类型变量时，不能对基本数据类型变量重新赋值，因此基本数据类型变量不能被改变。而对于引用类型变量而言，它仅仅保存的是一个引用，final只保证这个引用类型变量所引用的地址不会发生改变，即一直引用这个对象，但这个对象属性是可以改变的**。
 
@@ -68,12 +68,12 @@ final局部变量由程序员进行显式初始化，如果final局部变量已�
 
 当父类的方法被final修饰的时候，子类不能重写父类的该方法，比如在Object中，getClass()方法就是final的，我们就不能重写该方法，但是hashCode()方法就不是被final所修饰的，我们就可以重写hashCode()方法。我们还是来写一个例子来加深一下理解：
 先定义一个父类，里面有final修饰的方法test();
-	```java
-	public class FinalExampleParent {
-	    public final void test() {
-	    }
-	}
-	```
+```java
+public class FinalExampleParent {
+    public final void test() {
+    }
+}
+```
 然后FinalExample继承该父类，当重写test()方法时出现报错，如下图：
 
 ![final方法不能重写](final方法不能重写.png)
@@ -81,15 +81,16 @@ final局部变量由程序员进行显式初始化，如果final局部变量已�
 通过这个现象我们就可以看出来**被final修饰的方法不能够被子类所重写**。
 
 ### **重载？**
-	```java
-	public class FinalExampleParent {
-	    public final void test() {
-	    }
-	
-	    public final void test(String str) {
-	    }
-	}
-	```
+
+```java
+public class FinalExampleParent {
+    public final void test() {
+    }
+
+    public final void test(String str) {
+    }
+}
+```
 可以看出被final修饰的方法是可以重载的。经过我们的分析可以得出如下结论：
 
 **1. 父类的final方法是不能够被子类重写的**
@@ -97,12 +98,13 @@ final局部变量由程序员进行显式初始化，如果final局部变量已�
 **2. final方法是可以被重载的**
 ## 2.3 类 ##
 **当一个类被final修饰时，表名该类是不能被子类继承的**。子类继承往往可以重写父类的方法和改变父类属性，会带来一定的安全隐患，因此，当一个类不希望被继承时就可以使用final修饰。还是来写一个小例子：
-	```java
-	public final class FinalExampleParent {
-	    public final void test() {
-	    }
-	}
-	```
+
+```java
+public final class FinalExampleParent {
+    public final void test() {
+    }
+}
+```
 
 父类会被final修饰，当子类继承该父类的时候，就会报错，如下图：
 
@@ -120,10 +122,10 @@ final经常会被用作不变类上，利用final的不可更改性。我们先�
 4. 如果有必要就重写Object类 的hashCode()和equals()方法，应该保证用equals()判断相同的两个对象其Hashcode值也是相等的。
 
 JDK中提供的八个包装类和String类都是不可变类，我们来看看String的实现。
-	```java
-	/** The value is used for character storage. */
-	 private final char value[];
-	 ```
+```java
+/** The value is used for character storage. */
+ private final char value[];
+ ```
 可以看出String的value就是final修饰的，上述其他几条性质也是吻合的。
 
 # 4. 多线程中你真的了解final吗？ #
@@ -134,28 +136,28 @@ JDK中提供的八个包装类和String类都是不可变类，我们来看看St
 ### 4.1.1 final域为基本类型  ###
 先看一段示例性的代码：
 
-	```java
-	public class FinalDemo {
-	    private int a;  //普通域
-	    private final int b; //final域
-	    private static FinalDemo finalDemo;
-	
-	    public FinalDemo() {
-	        a = 1; // 1. 写普通域
-	        b = 2; // 2. 写final域
-	    }
-	
-	    public static void writer() {
-	        finalDemo = new FinalDemo();
-	    }
-	
-	    public static void reader() {
-	        FinalDemo demo = finalDemo; // 3.读对象引用
-	        int a = demo.a;    //4.读普通域
-	        int b = demo.b;    //5.读final域
-	    }
-	}
-	```
+```java
+public class FinalDemo {
+    private int a;  //普通域
+    private final int b; //final域
+    private static FinalDemo finalDemo;
+
+    public FinalDemo() {
+	a = 1; // 1. 写普通域
+	b = 2; // 2. 写final域
+    }
+
+    public static void writer() {
+	finalDemo = new FinalDemo();
+    }
+
+    public static void reader() {
+	FinalDemo demo = finalDemo; // 3.读对象引用
+	int a = demo.a;    //4.读普通域
+	int b = demo.b;    //5.读final域
+    }
+}
+```
 
 假设线程A在执行writer()方法，线程B执行reader()方法。
 
@@ -209,31 +211,31 @@ read()方法主要包含了三个操作：
 
 针对引用数据类型，final域写针对编译器和处理器重排序**增加了这样的约束**：在构造函数内对**一个final修饰的对象的成员域的写入，与随后在构造函数之外把这个被构造的对象的引用赋给一个引用变量**，这两个操作是不能被重排序的。注意这里的是“增加”也就说前面对final基本数据类型的重排序规则在这里还是使用。这句话是比较拗口的，下面结合实例来看。
 
-	```java
-	public class FinalReferenceDemo {
-	    final int[] arrays;
-	    private FinalReferenceDemo finalReferenceDemo;
-	
-	    public FinalReferenceDemo() {
-	        arrays = new int[1];  //1
-	        arrays[0] = 1;        //2
-	    }
-	
-	    public void writerOne() {
-	        finalReferenceDemo = new FinalReferenceDemo(); //3
-	    }
-	
-	    public void writerTwo() {
-	        arrays[0] = 2;  //4
-	    }
-	
-	    public void reader() {
-	        if (finalReferenceDemo != null) {  //5
-	            int temp = finalReferenceDemo.arrays[0];  //6
-	        }
-	    }
+```java
+public class FinalReferenceDemo {
+    final int[] arrays;
+    private FinalReferenceDemo finalReferenceDemo;
+
+    public FinalReferenceDemo() {
+	arrays = new int[1];  //1
+	arrays[0] = 1;        //2
+    }
+
+    public void writerOne() {
+	finalReferenceDemo = new FinalReferenceDemo(); //3
+    }
+
+    public void writerTwo() {
+	arrays[0] = 2;  //4
+    }
+
+    public void reader() {
+	if (finalReferenceDemo != null) {  //5
+	    int temp = finalReferenceDemo.arrays[0];  //6
 	}
-	```
+    }
+}
+```
 
 针对上面的实例程序，线程线程A执行wirterOne方法，执行完后线程B执行writerTwo方法，然后线程C执行reader方法。下图就以这种执行时序出现的一种情况来讨论（耐心看完才有收获）。
 
@@ -267,27 +269,27 @@ JMM可以确保线程C至少能看到写线程A对final引用的对象的成员�
 # 6. 为什么final引用不能从构造函数中“溢出” #
 这里还有一个比较有意思的问题：上面对final域写重排序规则可以确保我们在使用一个对象引用的时候该对象的final域已经在构造函数被初始化过了。但是这里其实是有一个前提条件的，也就是：**在构造函数，不能让这个被构造的对象被其他线程可见，也就是说该对象引用不能在构造函数中“逸出”**。以下面的例子来说：
 
-	```java
-	public class FinalReferenceEscapeDemo {
-	    private final int a;
-	    private FinalReferenceEscapeDemo referenceDemo;
-	
-	    public FinalReferenceEscapeDemo() {
-	        a = 1;  //1
-	        referenceDemo = this; //2
-	    }
-	
-	    public void writer() {
-	        new FinalReferenceEscapeDemo();
-	    }
-	
-	    public void reader() {
-	        if (referenceDemo != null) {  //3
-	            int temp = referenceDemo.a; //4
-	        }
-	    }
+```java
+public class FinalReferenceEscapeDemo {
+    private final int a;
+    private FinalReferenceEscapeDemo referenceDemo;
+
+    public FinalReferenceEscapeDemo() {
+	a = 1;  //1
+	referenceDemo = this; //2
+    }
+
+    public void writer() {
+	new FinalReferenceEscapeDemo();
+    }
+
+    public void reader() {
+	if (referenceDemo != null) {  //3
+	    int temp = referenceDemo.a; //4
 	}
-	```
+    }
+}
+```
 
 可能的执行时序如图所示：
 

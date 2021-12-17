@@ -358,44 +358,46 @@ private void unparkSuccessor(Node node) {
 ## 3.3 可中断式获取锁（acquireInterruptibly方法） ##
 我们知道lock相较于synchronized有一些更方便的特性，比如能响应中断以及超时等待等特性，现在我们依旧采用通过学习源码的方式来看看能够响应中断是怎么实现的。可响应中断式锁可调用方法lock.lockInterruptibly();而该方法其底层会调用AQS的acquireInterruptibly方法，源码为：
 
-	public final void acquireInterruptibly(int arg)
-	        throws InterruptedException {
-	    if (Thread.interrupted())
-	        throw new InterruptedException();
-	    if (!tryAcquire(arg))
-			//线程获取锁失败
-	        doAcquireInterruptibly(arg);
-	}
-
+```java
+public final void acquireInterruptibly(int arg)
+	throws InterruptedException {
+    if (Thread.interrupted())
+	throw new InterruptedException();
+    if (!tryAcquire(arg))
+		//线程获取锁失败
+	doAcquireInterruptibly(arg);
+}
+```
 
 在获取同步状态失败后就会调用doAcquireInterruptibly方法：
 
-	private void doAcquireInterruptibly(int arg)
-	    throws InterruptedException {
-		//将节点插入到同步队列中
-	    final Node node = addWaiter(Node.EXCLUSIVE);
-	    boolean failed = true;
-	    try {
-	        for (;;) {
-	            final Node p = node.predecessor();
-	            //获取锁出队
-				if (p == head && tryAcquire(arg)) {
-	                setHead(node);
-	                p.next = null; // help GC
-	                failed = false;
-	                return;
-	            }
-	            if (shouldParkAfterFailedAcquire(p, node) &&
-	                parkAndCheckInterrupt())
-					//线程中断抛异常
-	                throw new InterruptedException();
-	        }
-	    } finally {
-	        if (failed)
-	            cancelAcquire(node);
+```java
+private void doAcquireInterruptibly(int arg)
+    throws InterruptedException {
+	//将节点插入到同步队列中
+    final Node node = addWaiter(Node.EXCLUSIVE);
+    boolean failed = true;
+    try {
+	for (;;) {
+	    final Node p = node.predecessor();
+	    //获取锁出队
+			if (p == head && tryAcquire(arg)) {
+		setHead(node);
+		p.next = null; // help GC
+		failed = false;
+		return;
 	    }
+	    if (shouldParkAfterFailedAcquire(p, node) &&
+		parkAndCheckInterrupt())
+				//线程中断抛异常
+		throw new InterruptedException();
 	}
-
+    } finally {
+	if (failed)
+	    cancelAcquire(node);
+    }
+}
+```
 关键信息请看注释，现在看这段代码就很轻松了吧:),与acquire方法逻辑几乎一致，唯一的区别是当**parkAndCheckInterrupt**返回true时即线程阻塞时该线程被中断，代码抛出被中断异常。
 
 ## 3.4 超时等待式获取锁（tryAcquireNanos()方法）
@@ -407,57 +409,61 @@ private void unparkSuccessor(Node node) {
 
 我们仍然通过采取阅读源码的方式来学习底层具体是怎么实现的，该方法会调用AQS的方法tryAcquireNanos(),源码为：
 
-	public final boolean tryAcquireNanos(int arg, long nanosTimeout)
-	        throws InterruptedException {
-	    if (Thread.interrupted())
-	        throw new InterruptedException();
-	    return tryAcquire(arg) ||
-			//实现超时等待的效果
-	        doAcquireNanos(arg, nanosTimeout);
-	}
+```java
+public final boolean tryAcquireNanos(int arg, long nanosTimeout)
+	throws InterruptedException {
+    if (Thread.interrupted())
+	throw new InterruptedException();
+    return tryAcquire(arg) ||
+		//实现超时等待的效果
+	doAcquireNanos(arg, nanosTimeout);
+}
+```
 
 很显然这段源码最终是靠doAcquireNanos方法实现超时等待的效果，该方法源码如下：
 
-	private boolean doAcquireNanos(int arg, long nanosTimeout)
-	        throws InterruptedException {
-	    if (nanosTimeout <= 0L)
-	        return false;
-		//1. 根据超时时间和当前时间计算出截止时间
-	    final long deadline = System.nanoTime() + nanosTimeout;
-	    final Node node = addWaiter(Node.EXCLUSIVE);
-	    boolean failed = true;
-	    try {
-	        for (;;) {
-	            final Node p = node.predecessor();
-				//2. 当前线程获得锁出队列
-	            if (p == head && tryAcquire(arg)) {
-	                setHead(node);
-	                p.next = null; // help GC
-	                failed = false;
-	                return true;
-	            }
-				// 3.1 重新计算超时时间
-	            nanosTimeout = deadline - System.nanoTime();
-	            // 3.2 已经超时返回false
-				if (nanosTimeout <= 0L)
-	                return false;
-				// 3.3 线程阻塞等待 
-	            if (shouldParkAfterFailedAcquire(p, node) &&
-	                nanosTimeout > spinForTimeoutThreshold)
-	                LockSupport.parkNanos(this, nanosTimeout);
-	            // 3.4 线程被中断抛出被中断异常
-				if (Thread.interrupted())
-	                throw new InterruptedException();
-	        }
-	    } finally {
-	        if (failed)
-	            cancelAcquire(node);
+```java
+private boolean doAcquireNanos(int arg, long nanosTimeout)
+	throws InterruptedException {
+    if (nanosTimeout <= 0L)
+	return false;
+	//1. 根据超时时间和当前时间计算出截止时间
+    final long deadline = System.nanoTime() + nanosTimeout;
+    final Node node = addWaiter(Node.EXCLUSIVE);
+    boolean failed = true;
+    try {
+	for (;;) {
+	    final Node p = node.predecessor();
+			//2. 当前线程获得锁出队列
+	    if (p == head && tryAcquire(arg)) {
+		setHead(node);
+		p.next = null; // help GC
+		failed = false;
+		return true;
 	    }
+			// 3.1 重新计算超时时间
+	    nanosTimeout = deadline - System.nanoTime();
+	    // 3.2 已经超时返回false
+			if (nanosTimeout <= 0L)
+		return false;
+			// 3.3 线程阻塞等待 
+	    if (shouldParkAfterFailedAcquire(p, node) &&
+		nanosTimeout > spinForTimeoutThreshold)
+		LockSupport.parkNanos(this, nanosTimeout);
+	    // 3.4 线程被中断抛出被中断异常
+			if (Thread.interrupted())
+		throw new InterruptedException();
 	}
+    } finally {
+	if (failed)
+	    cancelAcquire(node);
+    }
+}
+```
 
 程序逻辑如图所示：
 
-![超时等待式获取锁（doAcquireNanos()方法）](http://upload-images.jianshu.io/upload_images/2615789-a80779d4736afb87.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![超时等待式获取锁（doAcquireNanos()方法）](超时等待式获取锁（doAcquireNanos()方法）.png)
 
 
 
@@ -470,88 +476,92 @@ private void unparkSuccessor(Node node) {
 ## 4.1 共享锁的获取（acquireShared()方法） ##
 在聊完AQS对独占锁的实现后，我们继续一鼓作气的来看看共享锁是怎样实现的？共享锁的获取方法为acquireShared，源码为：
 
-	public final void acquireShared(int arg) {
-	    if (tryAcquireShared(arg) < 0)
-	        doAcquireShared(arg);
-	}
+```java
+public final void acquireShared(int arg) {
+    if (tryAcquireShared(arg) < 0)
+	doAcquireShared(arg);
+}
+```
 
 这段源码的逻辑很容易理解，在该方法中会首先调用tryAcquireShared方法，tryAcquireShared返回值是一个int类型，当返回值为大于等于0的时候方法结束说明获得成功获取锁，否则，表明获取同步状态失败即所引用的线程获取锁失败，会执行doAcquireShared方法，该方法的源码为：
 
-	private void doAcquireShared(int arg) {
-	    final Node node = addWaiter(Node.SHARED);
-	    boolean failed = true;
-	    try {
-	        boolean interrupted = false;
-	        for (;;) {
-	            final Node p = node.predecessor();
-	            if (p == head) {
-	                int r = tryAcquireShared(arg);
-	                if (r >= 0) {
-						// 当该节点的前驱节点是头结点且成功获取同步状态
-	                    setHeadAndPropagate(node, r);
-	                    p.next = null; // help GC
-	                    if (interrupted)
-	                        selfInterrupt();
-	                    failed = false;
-	                    return;
-	                }
-	            }
-	            if (shouldParkAfterFailedAcquire(p, node) &&
-	                parkAndCheckInterrupt())
-	                interrupted = true;
-	        }
-	    } finally {
-	        if (failed)
-	            cancelAcquire(node);
+```
+private void doAcquireShared(int arg) {
+    final Node node = addWaiter(Node.SHARED);
+    boolean failed = true;
+    try {
+	boolean interrupted = false;
+	for (;;) {
+	    final Node p = node.predecessor();
+	    if (p == head) {
+		int r = tryAcquireShared(arg);
+		if (r >= 0) {
+					// 当该节点的前驱节点是头结点且成功获取同步状态
+		    setHeadAndPropagate(node, r);
+		    p.next = null; // help GC
+		    if (interrupted)
+			selfInterrupt();
+		    failed = false;
+		    return;
+		}
 	    }
+	    if (shouldParkAfterFailedAcquire(p, node) &&
+		parkAndCheckInterrupt())
+		interrupted = true;
 	}
+    } finally {
+	if (failed)
+	    cancelAcquire(node);
+    }
+}
+```
 
 现在来看这段代码会不会很容易了？逻辑几乎和独占式锁的获取一模一样，这里的自旋过程中能够退出的条件**是当前节点的前驱节点是头结点并且tryAcquireShared(arg)返回值大于等于0即能成功获得同步状态**。
 
 ## 4.2 共享锁的释放（releaseShared()方法） ##
 共享锁的释放在AQS中会调用方法releaseShared：
-
-	public final boolean releaseShared(int arg) {
-	    if (tryReleaseShared(arg)) {
-	        doReleaseShared();
-	        return true;
-	    }
-	    return false;
-	}
-
+```java
+public final boolean releaseShared(int arg) {
+    if (tryReleaseShared(arg)) {
+	doReleaseShared();
+	return true;
+    }
+    return false;
+}
+```
 当成功释放同步状态之后即tryReleaseShared会继续执行doReleaseShared方法：
-
-	private void doReleaseShared() {
-	    /*
-	     * Ensure that a release propagates, even if there are other
-	     * in-progress acquires/releases.  This proceeds in the usual
-	     * way of trying to unparkSuccessor of head if it needs
-	     * signal. But if it does not, status is set to PROPAGATE to
-	     * ensure that upon release, propagation continues.
-	     * Additionally, we must loop in case a new node is added
-	     * while we are doing this. Also, unlike other uses of
-	     * unparkSuccessor, we need to know if CAS to reset status
-	     * fails, if so rechecking.
-	     */
-	    for (;;) {
-	        Node h = head;
-	        if (h != null && h != tail) {
-	            int ws = h.waitStatus;
-	            if (ws == Node.SIGNAL) {
-	                if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))
-	                    continue;            // loop to recheck cases
-	                unparkSuccessor(h);
-	            }
-	            else if (ws == 0 &&
-	                     !compareAndSetWaitStatus(h, 0, Node.PROPAGATE))
-	                continue;                // loop on failed CAS
-	        }
-	        if (h == head)                   // loop if head changed
-	            break;
+```java
+private void doReleaseShared() {
+    /*
+     * Ensure that a release propagates, even if there are other
+     * in-progress acquires/releases.  This proceeds in the usual
+     * way of trying to unparkSuccessor of head if it needs
+     * signal. But if it does not, status is set to PROPAGATE to
+     * ensure that upon release, propagation continues.
+     * Additionally, we must loop in case a new node is added
+     * while we are doing this. Also, unlike other uses of
+     * unparkSuccessor, we need to know if CAS to reset status
+     * fails, if so rechecking.
+     */
+    for (;;) {
+	Node h = head;
+	if (h != null && h != tail) {
+	    int ws = h.waitStatus;
+	    if (ws == Node.SIGNAL) {
+		if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))
+		    continue;            // loop to recheck cases
+		unparkSuccessor(h);
 	    }
+	    else if (ws == 0 &&
+		     !compareAndSetWaitStatus(h, 0, Node.PROPAGATE))
+		continue;                // loop on failed CAS
 	}
+	if (h == head)                   // loop if head changed
+	    break;
+    }
+}
 
-
+```
 这段方法跟独占式锁释放过程有点点不同，在共享式锁的释放过程中，对于能够支持多个线程同时访问的并发组件，必须保证多个线程能够安全的释放同步状态，这里采用的CAS保证，当CAS操作失败continue，在下一次循环中进行重试。
 
 ## 4.3 可中断（acquireSharedInterruptibly()方法），超时等待（tryAcquireSharedNanos()方法） ##

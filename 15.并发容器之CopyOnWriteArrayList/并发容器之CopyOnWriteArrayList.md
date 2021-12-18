@@ -3,7 +3,7 @@
 # 1. CopyOnWriteArrayList的简介 #
 java学习者都清楚ArrayList并不是线程安全的，在读线程在读取ArrayList的时候如果有写线程在写数据的时候，基于fast-fail机制，会抛出**ConcurrentModificationException**异常，也就是说ArrayList并不是一个线程安全的容器，当然您可以用Vector,或者使用Collections的静态方法将ArrayList包装成一个线程安全的类，但是这些方式都是采用java关键字synchronzied对方法进行修饰，利用独占式锁来保证线程安全的。但是，由于独占式锁在同一时刻只有一个线程能够获取到对象监视器，很显然这种方式效率并不是太高。
 
-回到业务场景中，有很多业务往往是读多写少的，比如系统配置的信息，除了在初始进行系统配置的时候需要写入数据，其他大部分时刻其他模块之后对系统信息只需要进行读取，又比如白名单，黑名单等配置，只需要读取名单配置然后检测当前用户是否在该配置范围以内。类似的还有很多业务场景，它们都是属于**读多写少**的场景。如果在这种情况用到上述的方法，使用Vector,Collections转换的这些方式是不合理的，因为尽管多个读线程从同一个数据容器中读取数据，但是读线程对数据容器的数据并不会发生发生修改。很自然而然的我们会联想到ReenTrantReadWriteLock（关于读写锁可以看[这篇文章](https://juejin.im/post/5aeb0e016fb9a07ab7740d90)），通过**读写分离**的思想，使得读读之间不会阻塞，无疑如果一个list能够做到被多个读线程读取的话，性能会大大提升不少。但是，如果仅仅是将list通过读写锁（ReentrantReadWriteLock）进行再一次封装的话，由于读写锁的特性，当写锁被写线程获取后，读写线程都会被阻塞。如果仅仅使用读写锁对list进行封装的话，这里仍然存在读线程在读数据的时候被阻塞的情况，如果想list的读效率更高的话，这里就是我们的突破口，如果我们保证读线程无论什么时候都不被阻塞，效率岂不是会更高？
+回到业务场景中，有很多业务往往是读多写少的，比如系统配置的信息，除了在初始进行系统配置的时候需要写入数据，其他大部分时刻其他模块之后对系统信息只需要进行读取，又比如白名单，黑名单等配置，只需要读取名单配置然后检测当前用户是否在该配置范围以内。类似的还有很多业务场景，它们都是属于**读多写少**的场景。如果在这种情况用到上述的方法，使用Vector,Collections转换的这些方式是不合理的，因为尽管多个读线程从同一个数据容器中读取数据，但是读线程对数据容器的数据并不会发生发生修改。很自然而然的我们会联想到ReenTrantReadWriteLock（关于读写锁可以看[这篇文章](../11.深入理解读写锁ReentrantReadWriteLock/深入理解读写锁ReentrantReadWriteLock.md)），通过**读写分离**的思想，使得读读之间不会阻塞，无疑如果一个list能够做到被多个读线程读取的话，性能会大大提升不少。但是，如果仅仅是将list通过读写锁（ReentrantReadWriteLock）进行再一次封装的话，由于读写锁的特性，当写锁被写线程获取后，读写线程都会被阻塞。如果仅仅使用读写锁对list进行封装的话，这里仍然存在读线程在读数据的时候被阻塞的情况，如果想list的读效率更高的话，这里就是我们的突破口，如果我们保证读线程无论什么时候都不被阻塞，效率岂不是会更高？
 
 Doug Lea大师就为我们提供CopyOnWriteArrayList容器可以保证线程安全，保证读读之间在任何时候都不会被阻塞，CopyOnWriteArrayList也被广泛应用于很多业务场景之中，CopyOnWriteArrayList值得被我们好好认识一番。
 
@@ -16,53 +16,59 @@ COW通俗的理解是当我们往一个容器添加元素的时候，不直接�
 # 3. CopyOnWriteArrayList的实现原理 #
 现在我们来通过看源码的方式来理解CopyOnWriteArrayList，实际上CopyOnWriteArrayList内部维护的就是一个数组
 
-	/** The array, accessed only via getArray/setArray. */
-	private transient volatile Object[] array;
+```java
+/** The array, accessed only via getArray/setArray. */
+private transient volatile Object[] array;
+```
 
-并且该数组引用是被volatile修饰，注意这里**仅仅是修饰的是数组引用**，其中另有玄机，稍后揭晓。关于volatile很重要的一条性质是它能够够保证可见性，关于volatile的详细讲解可以看[这篇文章](https://juejin.im/post/5ae9b41b518825670b33e6c4)。对list来说，我们自然而然最关心的就是读写的时候，分别为get和add方法的实现。
+并且该数组引用是被volatile修饰，注意这里**仅仅是修饰的是数组引用**，其中另有玄机，稍后揭晓。关于volatile很重要的一条性质是它能够够保证可见性，关于volatile的详细讲解可以看[这篇文章](../05.彻底理解volatile/java关键字---volatile.md)。对list来说，我们自然而然最关心的就是读写的时候，分别为get和add方法的实现。
 
 ## 3.1 get方法实现原理 ##
 
 get方法的源码为：
 
-	public E get(int index) {
-	    return get(getArray(), index);
-	}
-	/**
-	 * Gets the array.  Non-private so as to also be accessible
-	 * from CopyOnWriteArraySet class.
-	 */
-	final Object[] getArray() {
-	    return array;
-	}
-	private E get(Object[] a, int index) {
-	    return (E) a[index];
-	}
+```java
+public E get(int index) {
+    return get(getArray(), index);
+}
+/**
+ * Gets the array.  Non-private so as to also be accessible
+ * from CopyOnWriteArraySet class.
+ */
+final Object[] getArray() {
+    return array;
+}
+private E get(Object[] a, int index) {
+    return (E) a[index];
+}
+```
 可以看出来get方法实现非常简单，几乎就是一个“单线程”程序，没有对多线程添加任何的线程安全控制，也没有加锁也没有CAS操作等等，原因是，所有的读线程只是会读取数据容器中的数据，并不会进行修改。
 
 ## 3.2 add方法实现原理 ##
 
 再来看下如何进行添加数据的？add方法的源码为：
 
-	public boolean add(E e) {
-	    final ReentrantLock lock = this.lock;
-		//1. 使用Lock,保证写线程在同一时刻只有一个
-	    lock.lock();
-	    try {
-			//2. 获取旧数组引用
-	        Object[] elements = getArray();
-	        int len = elements.length;
-			//3. 创建新的数组，并将旧数组的数据复制到新数组中
-	        Object[] newElements = Arrays.copyOf(elements, len + 1);
-			//4. 往新数组中添加新的数据	        
-			newElements[len] = e;
-			//5. 将旧数组引用指向新的数组
-	        setArray(newElements);
-	        return true;
-	    } finally {
-	        lock.unlock();
-	    }
-	}
+```java
+public boolean add(E e) {
+    final ReentrantLock lock = this.lock;
+	//1. 使用Lock,保证写线程在同一时刻只有一个
+    lock.lock();
+    try {
+		//2. 获取旧数组引用
+        Object[] elements = getArray();
+        int len = elements.length;
+		//3. 创建新的数组，并将旧数组的数据复制到新数组中
+        Object[] newElements = Arrays.copyOf(elements, len + 1);
+		//4. 往新数组中添加新的数据	        
+		newElements[len] = e;
+		//5. 将旧数组引用指向新的数组
+        setArray(newElements);
+        return true;
+    } finally {
+        lock.unlock();
+    }
+}
+```
 
 add方法的逻辑也比较容易理解，请看上面的注释。需要注意这么几点：
 
@@ -72,7 +78,7 @@ add方法的逻辑也比较容易理解，请看上面的注释。需要注意�
 # 4. 总结 #
 我们知道COW和读写锁都是通过读写分离的思想实现的，但两者还是有些不同，可以进行比较：
 
-> **COW  vs 读写锁**
+## **COW  vs 读写锁**
 
 相同点：1. 两者都是通过读写分离的思想实现；2.读线程间是互不阻塞的
 
@@ -80,16 +86,18 @@ add方法的逻辑也比较容易理解，请看上面的注释。需要注意�
 
 对这一点从文字上还是很难理解，我们来通过debug看一下，add方法核心代码为：
 
-	1.Object[] elements = getArray();
-	2.int len = elements.length;
-	3.Object[] newElements = Arrays.copyOf(elements, len + 1);
-	4.newElements[len] = e;
-	5.setArray(newElements);
+```java
+1.Object[] elements = getArray();
+2.int len = elements.length;
+3.Object[] newElements = Arrays.copyOf(elements, len + 1);
+4.newElements[len] = e;
+5.setArray(newElements);
+```
 
 假设COW的变化如下图所示：
 
 
-![最终一致性的分析.png](http://upload-images.jianshu.io/upload_images/2615789-4519051e92e5252b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![最终一致性的分析.png](最终一致性的分析.png)
 
 
 
@@ -104,8 +112,7 @@ add方法的逻辑也比较容易理解，请看上面的注释。需要注意�
 
 这也是为什么concurrentHashMap只具有弱一致性的原因，关于concurrentHashMap的弱一致性可以[看这篇文章](http://ifeve.com/volatile-array-visiblity/294529737/)。
 
-
-> **COW的缺点**
+## **COW的缺点**
 
 CopyOnWrite容器有很多优点，但是同时也存在两个问题，即内存占用问题和数据一致性问题。所以在开发的时候需要注意一下。
 

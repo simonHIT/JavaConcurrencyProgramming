@@ -201,7 +201,11 @@ public final void awaitUninterruptibly() {
 这段方法与上面的await方法基本一致，只不过减少了对中断的处理，并省略了reportInterruptAfterWait方法抛被中断的异常。
 
 ## 2.3 signal/signalAll实现原理 ##
-**调用condition的signal或者signalAll方法可以将等待队列中等待时间最长的节点移动到同步队列中**，使得该节点能够有机会获得lock。按照等待队列是先进先出（FIFO）的，所以等待队列的头节点必然会是等待时间最长的节点，也就是每次调用condition的signal方法是将头节点移动到同步队列中。我们来通过看源码的方式来看这样的猜想是不是对的，signal方法源码为：
+**调用condition的signal或者signalAll方法可以将等待队列中等待时间最长的节点移动到同步队列中**，使得该节点能够有机会获得lock。按照等待队列是先进先出（FIFO）的，所以等待队列的头节点必然会是等待时间最长的节点，也就是每次调用condition的signal方法是将头节点移动到同步队列中。
+
+### signal方法
+
+我们来通过看源码的方式来看这样的猜想是不是对的，signal方法源码为：
 
 ```java
 public final void signal() {
@@ -256,13 +260,16 @@ final boolean transferForSignal(Node node) {
 }
 ```
 
-关键逻辑请看注释，这段代码主要做了两件事情1.将头结点的状态更改为CONDITION；2.调用enq方法，将该节点尾插入到同步队列中，关于enq方法请看AQS的底层实现这篇文章。现在我们可以得出结论：**调用condition的signal的前提条件是当前线程已经获取了lock，该方法会使得等待队列中的头节点即等待时间最长的那个节点移入到同步队列，而移入到同步队列后才有机会使得等待线程被唤醒，即从await方法中的LockSupport.park(this)方法中返回，从而才有机会使得调用await方法的线程成功退出**。signal执行示意图如下图：
+关键逻辑请看注释，这段代码主要做了两件事情
+1.将头结点的状态更改为CONDITION；
+2.调用enq方法，将该节点尾插入到同步队列中，关于enq方法请看AQS的底层实现这篇文章。
+现在我们可以得出结论：**调用condition的signal的前提条件是当前线程已经获取了lock，该方法会使得等待队列中的头节点即等待时间最长的那个节点移入到同步队列，而移入到同步队列后才有机会使得等待线程被唤醒，即从await方法中的LockSupport.park(this)方法中返回，从而才有机会使得调用await方法的线程成功退出**。signal执行示意图如下图：
 
 ![signal执行示意图](signal执行示意图.png)
 
 
 
-> signalAll
+### signalAll
 
 sigllAll与sigal方法的区别体现在doSignalAll方法上，前面我们已经知道d**oSignal方法只会对等待队列的头节点进行操作，**，而doSignalAll的源码为：
 

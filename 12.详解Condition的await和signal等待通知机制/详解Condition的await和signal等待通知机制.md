@@ -261,8 +261,8 @@ final boolean transferForSignal(Node node) {
 ```
 
 关键逻辑请看注释，这段代码主要做了两件事情
-1.将头结点的状态更改为CONDITION；
-2.调用enq方法，将该节点尾插入到同步队列中，关于enq方法请看AQS的底层实现这篇文章。
+1. 将头结点的状态更改为CONDITION；
+2. 调用enq方法，将该节点尾插入到同步队列中，关于enq方法请看AQS的底层实现这篇文章。
 现在我们可以得出结论：**调用condition的signal的前提条件是当前线程已经获取了lock，该方法会使得等待队列中的头节点即等待时间最长的那个节点移入到同步队列，而移入到同步队列后才有机会使得等待线程被唤醒，即从await方法中的LockSupport.park(this)方法中返回，从而才有机会使得调用await方法的线程成功退出**。signal执行示意图如下图：
 
 ![signal执行示意图](signal执行示意图.png)
